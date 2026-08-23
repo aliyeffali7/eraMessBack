@@ -5,14 +5,18 @@ from .models import Section, Unit
 
 
 def create_unit(*, name: str, creator: User) -> Unit:
-    conversation = Conversation.objects.create(is_group=True, name=name)
+    conversation = Conversation.objects.create(is_group=True, name=name, created_by=creator)
     conversation.participants.add(creator)
+    conversation.admins.add(creator)
     return Unit.objects.create(name=name, conversation=conversation, created_by=creator)
 
 
 def create_section(*, unit: Unit, name: str, creator: User) -> Section:
-    conversation = Conversation.objects.create(is_group=True, name=f"{unit.name} / {name}")
+    conversation = Conversation.objects.create(
+        is_group=True, name=f"{unit.name} / {name}", created_by=creator
+    )
     conversation.participants.add(creator)
+    conversation.admins.add(creator)
     return Section.objects.create(unit=unit, name=name, conversation=conversation, created_by=creator)
 
 

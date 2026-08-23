@@ -6,6 +6,10 @@ class Conversation(models.Model):
     is_group = models.BooleanField(default=False)
     name = models.CharField(max_length=120, blank=True)
     participants = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name="conversations")
+    admins = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name="admin_of_conversations", blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

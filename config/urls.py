@@ -10,6 +10,7 @@ urlpatterns = [
     path("api/library/", include("apps.library.urls")),
     path("api/org/", include("apps.org.urls")),
     path("api/notifications/", include("apps.notifications.urls")),
+    path("api/meetings/", include("apps.meetings.urls")),
 ]
 
 if settings.DEBUG:

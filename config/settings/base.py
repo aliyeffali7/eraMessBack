@@ -20,6 +20,7 @@ INSTALLED_APPS = [
     "apps.library",
     "apps.org",
     "apps.notifications",
+    "apps.meetings",
 ]
 
 MIDDLEWARE = [

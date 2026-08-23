@@ -15,8 +15,39 @@ def get_or_create_direct_conversation(*, user: User, other: User) -> Conversatio
 
 
 def create_group_conversation(*, name: str, creator: User, member_ids: list[int]) -> Conversation:
-    conversation = Conversation.objects.create(is_group=True, name=name)
+    conversation = Conversation.objects.create(is_group=True, name=name, created_by=creator)
     conversation.participants.add(creator, *User.objects.filter(id__in=member_ids))
+    conversation.admins.add(creator)
+    return conversation
+
+
+def rename_conversation(*, conversation: Conversation, name: str) -> Conversation:
+    conversation.name = name
+    conversation.save(update_fields=["name"])
+    return conversation
+
+
+def add_members(*, conversation: Conversation, user_ids: list[int]) -> Conversation:
+    conversation.participants.add(*User.objects.filter(id__in=user_ids))
+    return conversation
+
+
+def remove_member(*, conversation: Conversation, user: User) -> Conversation:
+    conversation.participants.remove(user)
+    conversation.admins.remove(user)
+    return conversation
+
+
+def leave_conversation(*, conversation: Conversation, user: User) -> None:
+    conversation.participants.remove(user)
+    conversation.admins.remove(user)
+
+
+def set_conversation_admin(*, conversation: Conversation, user: User, is_admin: bool) -> Conversation:
+    if is_admin:
+        conversation.admins.add(user)
+    else:
+        conversation.admins.remove(user)
     return conversation
 
 
