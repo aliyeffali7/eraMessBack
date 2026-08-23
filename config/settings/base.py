@@ -19,6 +19,7 @@ INSTALLED_APPS = [
     "apps.chat",
     "apps.library",
     "apps.org",
+    "apps.notifications",
 ]
 
 MIDDLEWARE = [
@@ -72,6 +73,8 @@ LANGUAGE_CODE = "az"
 TIME_ZONE = "Asia/Baku"
 USE_I18N = True
 USE_TZ = True
+
+FIREBASE_CREDENTIALS_PATH = BASE_DIR / "secrets" / "firebase-adminsdk.json"
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"

@@ -21,7 +21,28 @@ def create_group_conversation(*, name: str, creator: User, member_ids: list[int]
 
 
 def send_message(*, conversation: Conversation, sender: User, text: str) -> Message:
-    return Message.objects.create(conversation=conversation, sender=sender, text=text)
+    message = Message.objects.create(conversation=conversation, sender=sender, text=text)
+    try:
+        _notify_participants(conversation=conversation, sender=sender, text=text)
+    except Exception:
+        pass
+    return message
+
+
+def _notify_participants(*, conversation: Conversation, sender: User, text: str) -> None:
+    from apps.notifications.services import send_push_to_users
+
+    recipient_ids = list(conversation.participants.exclude(id=sender.id).values_list("id", flat=True))
+    if not recipient_ids:
+        return
+    title = conversation.name if conversation.is_group else sender.username
+    body = f"{sender.username}: {text}" if conversation.is_group else text
+    send_push_to_users(
+        user_ids=recipient_ids,
+        title=title,
+        body=body[:200],
+        data={"conversation_id": conversation.id},
+    )
 
 
 def list_conversations_for_user(*, user: User):
