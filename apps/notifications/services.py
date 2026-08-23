@@ -1,3 +1,4 @@
+import logging
 import os
 
 import firebase_admin
@@ -5,6 +6,8 @@ from django.conf import settings
 from firebase_admin import credentials, messaging
 
 from .models import PushToken
+
+logger = logging.getLogger(__name__)
 
 _firebase_app = None
 _firebase_init_failed = False
@@ -16,12 +19,14 @@ def _get_firebase_app():
         return _firebase_app
     path = str(settings.FIREBASE_CREDENTIALS_PATH)
     if not os.path.exists(path):
+        logger.warning("Firebase credentials not found at %s; push notifications disabled.", path)
         _firebase_init_failed = True
         return None
     try:
         cred = credentials.Certificate(path)
         _firebase_app = firebase_admin.initialize_app(cred)
     except Exception:
+        logger.exception("Failed to initialize Firebase app.")
         _firebase_init_failed = True
         return None
     return _firebase_app
@@ -44,6 +49,11 @@ def send_push_to_users(*, user_ids, title: str, body: str, data: dict | None = N
         tokens=tokens,
     )
     try:
-        messaging.send_each_for_multicast(message, app=app)
+        response = messaging.send_each_for_multicast(message, app=app)
+        if response.failure_count:
+            for idx, res in enumerate(response.responses):
+                if not res.success:
+                    logger.warning("Push failed for token %s...: %s", tokens[idx][:20], res.exception)
+        logger.info("Push sent: %s success, %s failure", response.success_count, response.failure_count)
     except Exception:
-        pass
+        logger.exception("Push send raised an exception.")
