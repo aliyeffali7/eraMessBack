@@ -3,8 +3,11 @@ from rest_framework import generics, permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.org.models import Section
+from apps.org.services import assign_user_to_section
+
 from .models import User
-from .serializers import CreateUserSerializer, UpdateDegreeSerializer, UserSerializer
+from .serializers import AssignSectionSerializer, CreateUserSerializer, UpdateDegreeSerializer, UserSerializer
 from .services import create_user, list_all_users, search_users, set_user_degree
 
 
@@ -49,4 +52,16 @@ class AdminUpdateUserDegreeView(APIView):
         serializer.is_valid(raise_exception=True)
         user = get_object_or_404(User, pk=user_id)
         user = set_user_degree(user=user, degree=serializer.validated_data["degree"])
+        return Response(UserSerializer(user).data)
+
+
+class AdminAssignSectionView(APIView):
+    permission_classes = [permissions.IsAdminUser]
+
+    def patch(self, request, user_id):
+        serializer = AssignSectionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = get_object_or_404(User, pk=user_id)
+        section = get_object_or_404(Section, pk=serializer.validated_data["section_id"])
+        user = assign_user_to_section(user=user, section=section)
         return Response(UserSerializer(user).data)

@@ -4,10 +4,30 @@ from .models import MAX_DEGREE, MIN_DEGREE, User
 
 
 class UserSerializer(serializers.ModelSerializer):
+    section_name = serializers.SerializerMethodField()
+    unit_name = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ["id", "username", "first_name", "last_name", "degree", "is_staff", "joined_at"]
-        read_only_fields = ["degree", "is_staff", "joined_at"]
+        fields = [
+            "id",
+            "username",
+            "first_name",
+            "last_name",
+            "degree",
+            "is_staff",
+            "joined_at",
+            "section",
+            "section_name",
+            "unit_name",
+        ]
+        read_only_fields = ["degree", "is_staff", "joined_at", "section", "section_name", "unit_name"]
+
+    def get_section_name(self, obj):
+        return obj.section.name if obj.section else None
+
+    def get_unit_name(self, obj):
+        return obj.section.unit.name if obj.section else None
 
 
 class CreateUserSerializer(serializers.ModelSerializer):
@@ -21,3 +41,7 @@ class CreateUserSerializer(serializers.ModelSerializer):
 
 class UpdateDegreeSerializer(serializers.Serializer):
     degree = serializers.IntegerField(min_value=MIN_DEGREE, max_value=MAX_DEGREE)
+
+
+class AssignSectionSerializer(serializers.Serializer):
+    section_id = serializers.IntegerField()
