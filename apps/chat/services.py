@@ -1,11 +1,17 @@
+from django.db.models import Max
+from django.db.models.functions import Coalesce
+from django.utils import timezone
+
 from apps.accounts.models import User
 
-from .models import Conversation, Message
+from .models import Conversation, Message, ReadMarker
 
 
 def get_or_create_direct_conversation(*, user: User, other: User) -> Conversation:
     existing = (
-        Conversation.objects.filter(is_group=False, participants=user).filter(participants=other).first()
+        Conversation.objects.filter(is_group=False, participants=user)
+        .filter(participants=other)
+        .first()
     )
     if existing:
         return existing
@@ -14,8 +20,12 @@ def get_or_create_direct_conversation(*, user: User, other: User) -> Conversatio
     return conversation
 
 
-def create_group_conversation(*, name: str, creator: User, member_ids: list[int]) -> Conversation:
-    conversation = Conversation.objects.create(is_group=True, name=name, created_by=creator)
+def create_group_conversation(
+    *, name: str, creator: User, member_ids: list[int]
+) -> Conversation:
+    conversation = Conversation.objects.create(
+        is_group=True, name=name, created_by=creator
+    )
     conversation.participants.add(creator, *User.objects.filter(id__in=member_ids))
     conversation.admins.add(creator)
     return conversation
@@ -43,7 +53,9 @@ def leave_conversation(*, conversation: Conversation, user: User) -> None:
     conversation.admins.remove(user)
 
 
-def set_conversation_admin(*, conversation: Conversation, user: User, is_admin: bool) -> Conversation:
+def set_conversation_admin(
+    *, conversation: Conversation, user: User, is_admin: bool
+) -> Conversation:
     if is_admin:
         conversation.admins.add(user)
     else:
@@ -51,31 +63,49 @@ def set_conversation_admin(*, conversation: Conversation, user: User, is_admin: 
     return conversation
 
 
-def send_group_message(*, conversation: Conversation, sender: User, text: str) -> Message:
-    message = Message.objects.create(conversation=conversation, sender=sender, text=text)
+def send_group_message(
+    *, conversation: Conversation, sender: User, text: str
+) -> Message:
+    message = Message.objects.create(
+        conversation=conversation, sender=sender, text=text
+    )
     try:
-        _notify_participants(conversation=conversation, sender=sender, preview=f"{sender.username}: {text}"[:200])
+        _notify_participants(
+            conversation=conversation,
+            sender=sender,
+            preview=f"{sender.username}: {text}"[:200],
+        )
     except Exception:
         pass
     return message
 
 
-def send_direct_message(*, conversation: Conversation, sender: User, ciphertext: str, nonce: str) -> Message:
+def send_direct_message(
+    *, conversation: Conversation, sender: User, ciphertext: str, nonce: str
+) -> Message:
     # The server never sees plaintext here — `ciphertext`/`nonce` were produced
     # client-side using the recipient's public key. We can't build a content
     # preview for the push notification because we're unable to decrypt it.
-    message = Message.objects.create(conversation=conversation, sender=sender, ciphertext=ciphertext, nonce=nonce)
+    message = Message.objects.create(
+        conversation=conversation, sender=sender, ciphertext=ciphertext, nonce=nonce
+    )
     try:
-        _notify_participants(conversation=conversation, sender=sender, preview="Yeni mesaj")
+        _notify_participants(
+            conversation=conversation, sender=sender, preview="Yeni mesaj"
+        )
     except Exception:
         pass
     return message
 
 
-def _notify_participants(*, conversation: Conversation, sender: User, preview: str) -> None:
+def _notify_participants(
+    *, conversation: Conversation, sender: User, preview: str
+) -> None:
     from apps.notifications.services import send_push_to_users
 
-    recipient_ids = list(conversation.participants.exclude(id=sender.id).values_list("id", flat=True))
+    recipient_ids = list(
+        conversation.participants.exclude(id=sender.id).values_list("id", flat=True)
+    )
     if not recipient_ids:
         return
     title = conversation.name if conversation.is_group else sender.username
@@ -88,7 +118,19 @@ def _notify_participants(*, conversation: Conversation, sender: User, preview: s
 
 
 def list_conversations_for_user(*, user: User):
-    return Conversation.objects.filter(participants=user).order_by("-created_at")
+    # Bring conversations with the most recent activity to the top, WhatsApp-style,
+    # falling back to creation time for conversations with no messages yet.
+    return (
+        Conversation.objects.filter(participants=user)
+        .annotate(last_activity=Coalesce(Max("messages__created_at"), "created_at"))
+        .order_by("-last_activity")
+    )
+
+
+def mark_conversation_read(*, conversation: Conversation, user: User) -> None:
+    ReadMarker.objects.update_or_create(
+        conversation=conversation, user=user, defaults={"last_read_at": timezone.now()}
+    )
 
 
 def list_messages(*, conversation: Conversation, after_id: int | None = None):

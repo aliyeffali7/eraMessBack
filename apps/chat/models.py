@@ -5,10 +5,18 @@ from django.db import models
 class Conversation(models.Model):
     is_group = models.BooleanField(default=False)
     name = models.CharField(max_length=120, blank=True)
-    participants = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name="conversations")
-    admins = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name="admin_of_conversations", blank=True)
+    participants = models.ManyToManyField(
+        settings.AUTH_USER_MODEL, related_name="conversations"
+    )
+    admins = models.ManyToManyField(
+        settings.AUTH_USER_MODEL, related_name="admin_of_conversations", blank=True
+    )
     created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -17,8 +25,12 @@ class Conversation(models.Model):
 
 
 class Message(models.Model):
-    conversation = models.ForeignKey(Conversation, on_delete=models.CASCADE, related_name="messages")
-    sender = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="sent_messages")
+    conversation = models.ForeignKey(
+        Conversation, on_delete=models.CASCADE, related_name="messages"
+    )
+    sender = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="sent_messages"
+    )
     # Group messages (not yet E2EE): stored as plaintext here.
     text = models.TextField(blank=True, default="")
     # Direct (1:1) messages: end-to-end encrypted. The server stores only
@@ -32,4 +44,25 @@ class Message(models.Model):
         ordering = ["created_at"]
 
     def __str__(self):
-        return f"{self.sender_id}: {'<encrypted>' if self.ciphertext else self.text[:30]}"
+        return (
+            f"{self.sender_id}: {'<encrypted>' if self.ciphertext else self.text[:30]}"
+        )
+
+
+class ReadMarker(models.Model):
+    """Tracks the last time a given user read a given conversation, so we can
+    compute per-user unread counts (WhatsApp-style unread indicator)."""
+
+    conversation = models.ForeignKey(
+        Conversation, on_delete=models.CASCADE, related_name="read_markers"
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="read_markers"
+    )
+    last_read_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ("conversation", "user")
+
+    def __str__(self):
+        return f"{self.user_id} read {self.conversation_id} @ {self.last_read_at}"

@@ -6,6 +6,7 @@ from .views import (
     ConversationListView,
     CreateGroupConversationView,
     LeaveConversationView,
+    MarkConversationReadView,
     MessageListCreateView,
     RemoveMemberView,
     RenameConversationView,
@@ -15,12 +16,36 @@ from .views import (
 
 urlpatterns = [
     path("conversations/", ConversationListView.as_view(), name="conversation-list"),
-    path("conversations/direct/", StartDirectConversationView.as_view(), name="conversation-direct"),
-    path("conversations/group/", CreateGroupConversationView.as_view(), name="conversation-group"),
-    path("conversations/<int:conversation_id>/", ConversationDetailView.as_view(), name="conversation-detail"),
-    path("conversations/<int:conversation_id>/messages/", MessageListCreateView.as_view(), name="message-list"),
-    path("conversations/<int:conversation_id>/rename/", RenameConversationView.as_view(), name="conversation-rename"),
-    path("conversations/<int:conversation_id>/members/", AddMembersView.as_view(), name="conversation-add-members"),
+    path(
+        "conversations/direct/",
+        StartDirectConversationView.as_view(),
+        name="conversation-direct",
+    ),
+    path(
+        "conversations/group/",
+        CreateGroupConversationView.as_view(),
+        name="conversation-group",
+    ),
+    path(
+        "conversations/<int:conversation_id>/",
+        ConversationDetailView.as_view(),
+        name="conversation-detail",
+    ),
+    path(
+        "conversations/<int:conversation_id>/messages/",
+        MessageListCreateView.as_view(),
+        name="message-list",
+    ),
+    path(
+        "conversations/<int:conversation_id>/rename/",
+        RenameConversationView.as_view(),
+        name="conversation-rename",
+    ),
+    path(
+        "conversations/<int:conversation_id>/members/",
+        AddMembersView.as_view(),
+        name="conversation-add-members",
+    ),
     path(
         "conversations/<int:conversation_id>/members/<int:user_id>/",
         RemoveMemberView.as_view(),
@@ -31,5 +56,14 @@ urlpatterns = [
         SetConversationAdminView.as_view(),
         name="conversation-set-admin",
     ),
-    path("conversations/<int:conversation_id>/leave/", LeaveConversationView.as_view(), name="conversation-leave"),
+    path(
+        "conversations/<int:conversation_id>/leave/",
+        LeaveConversationView.as_view(),
+        name="conversation-leave",
+    ),
+    path(
+        "conversations/<int:conversation_id>/read/",
+        MarkConversationReadView.as_view(),
+        name="conversation-read",
+    ),
 ]

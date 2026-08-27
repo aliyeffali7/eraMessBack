@@ -15,6 +15,7 @@ from .services import (
     leave_conversation,
     list_conversations_for_user,
     list_messages,
+    mark_conversation_read,
     remove_member,
     rename_conversation,
     send_direct_message,
@@ -38,7 +39,9 @@ class StartDirectConversationView(generics.GenericAPIView):
     def post(self, request, *args, **kwargs):
         other = get_object_or_404(User, pk=request.data.get("user_id"))
         conversation = get_or_create_direct_conversation(user=request.user, other=other)
-        return Response(ConversationSerializer(conversation, context={"request": request}).data)
+        return Response(
+            ConversationSerializer(conversation, context={"request": request}).data
+        )
 
 
 class CreateGroupConversationView(generics.GenericAPIView):
@@ -51,7 +54,10 @@ class CreateGroupConversationView(generics.GenericAPIView):
             creator=request.user,
             member_ids=request.data.get("member_ids", []),
         )
-        return Response(ConversationSerializer(conversation, context={"request": request}).data, status=201)
+        return Response(
+            ConversationSerializer(conversation, context={"request": request}).data,
+            status=201,
+        )
 
 
 class ConversationDetailView(generics.RetrieveAPIView):
@@ -59,7 +65,9 @@ class ConversationDetailView(generics.RetrieveAPIView):
     serializer_class = ConversationSerializer
 
     def get_object(self):
-        conversation = get_object_or_404(Conversation, pk=self.kwargs["conversation_id"])
+        conversation = get_object_or_404(
+            Conversation, pk=self.kwargs["conversation_id"]
+        )
         if not conversation.participants.filter(id=self.request.user.id).exists():
             raise PermissionDenied("Bu söhbətin üzvü deyilsiniz.")
         return conversation
@@ -69,7 +77,9 @@ class BaseGroupManageView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_conversation(self, conversation_id) -> Conversation:
-        conversation = get_object_or_404(Conversation, pk=conversation_id, is_group=True)
+        conversation = get_object_or_404(
+            Conversation, pk=conversation_id, is_group=True
+        )
         if not conversation.participants.filter(id=self.request.user.id).exists():
             raise PermissionDenied("Bu qrupun üzvü deyilsiniz.")
         return conversation
@@ -87,15 +97,21 @@ class RenameConversationView(BaseGroupManageView):
         if not name:
             return Response({"detail": "name is required"}, status=400)
         conversation = rename_conversation(conversation=conversation, name=name)
-        return Response(ConversationSerializer(conversation, context={"request": request}).data)
+        return Response(
+            ConversationSerializer(conversation, context={"request": request}).data
+        )
 
 
 class AddMembersView(BaseGroupManageView):
     def post(self, request, conversation_id):
         conversation = self.get_conversation(conversation_id)
         self.require_admin(conversation)
-        conversation = add_members(conversation=conversation, user_ids=request.data.get("member_ids", []))
-        return Response(ConversationSerializer(conversation, context={"request": request}).data)
+        conversation = add_members(
+            conversation=conversation, user_ids=request.data.get("member_ids", [])
+        )
+        return Response(
+            ConversationSerializer(conversation, context={"request": request}).data
+        )
 
 
 class RemoveMemberView(BaseGroupManageView):
@@ -103,10 +119,14 @@ class RemoveMemberView(BaseGroupManageView):
         conversation = self.get_conversation(conversation_id)
         self.require_admin(conversation)
         if int(user_id) == request.user.id:
-            return Response({"detail": "Özünüzü çıxara bilməzsiniz, qrupdan ayrılın."}, status=400)
+            return Response(
+                {"detail": "Özünüzü çıxara bilməzsiniz, qrupdan ayrılın."}, status=400
+            )
         target = get_object_or_404(User, pk=user_id)
         conversation = remove_member(conversation=conversation, user=target)
-        return Response(ConversationSerializer(conversation, context={"request": request}).data)
+        return Response(
+            ConversationSerializer(conversation, context={"request": request}).data
+        )
 
 
 class SetConversationAdminView(BaseGroupManageView):
@@ -117,9 +137,13 @@ class SetConversationAdminView(BaseGroupManageView):
         if not conversation.participants.filter(id=target.id).exists():
             return Response({"detail": "Bu istifadəçi qrupun üzvü deyil."}, status=400)
         conversation = set_conversation_admin(
-            conversation=conversation, user=target, is_admin=bool(request.data.get("is_admin"))
+            conversation=conversation,
+            user=target,
+            is_admin=bool(request.data.get("is_admin")),
         )
-        return Response(ConversationSerializer(conversation, context={"request": request}).data)
+        return Response(
+            ConversationSerializer(conversation, context={"request": request}).data
+        )
 
 
 class LeaveConversationView(BaseGroupManageView):
@@ -129,12 +153,25 @@ class LeaveConversationView(BaseGroupManageView):
         return Response(status=204)
 
 
+class MarkConversationReadView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, conversation_id):
+        conversation = get_object_or_404(Conversation, pk=conversation_id)
+        if not conversation.participants.filter(id=request.user.id).exists():
+            raise PermissionDenied("Bu söhbətin üzvü deyilsiniz.")
+        mark_conversation_read(conversation=conversation, user=request.user)
+        return Response(status=204)
+
+
 class MessageListCreateView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = MessageSerializer
 
     def get_conversation(self) -> Conversation:
-        conversation = get_object_or_404(Conversation, pk=self.kwargs["conversation_id"])
+        conversation = get_object_or_404(
+            Conversation, pk=self.kwargs["conversation_id"]
+        )
         if not conversation.participants.filter(id=self.request.user.id).exists():
             raise PermissionDenied("Bu söhbətin üzvü deyilsiniz.")
         return conversation

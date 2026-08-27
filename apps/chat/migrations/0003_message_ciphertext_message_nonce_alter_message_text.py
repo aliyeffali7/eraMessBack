@@ -6,23 +6,23 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('chat', '0002_conversation_admins_conversation_created_by'),
+        ("chat", "0002_conversation_admins_conversation_created_by"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='message',
-            name='ciphertext',
-            field=models.TextField(blank=True, default=''),
+            model_name="message",
+            name="ciphertext",
+            field=models.TextField(blank=True, default=""),
         ),
         migrations.AddField(
-            model_name='message',
-            name='nonce',
-            field=models.TextField(blank=True, default=''),
+            model_name="message",
+            name="nonce",
+            field=models.TextField(blank=True, default=""),
         ),
         migrations.AlterField(
-            model_name='message',
-            name='text',
-            field=models.TextField(blank=True, default=''),
+            model_name="message",
+            name="text",
+            field=models.TextField(blank=True, default=""),
         ),
     ]
