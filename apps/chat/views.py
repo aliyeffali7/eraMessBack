@@ -17,7 +17,8 @@ from .services import (
     list_messages,
     remove_member,
     rename_conversation,
-    send_message,
+    send_direct_message,
+    send_group_message,
     set_conversation_admin,
 )
 
@@ -145,5 +146,17 @@ class MessageListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         conversation = self.get_conversation()
-        message = send_message(conversation=conversation, sender=self.request.user, text=serializer.validated_data["text"])
+        if conversation.is_group:
+            message = send_group_message(
+                conversation=conversation,
+                sender=self.request.user,
+                text=serializer.validated_data.get("text", ""),
+            )
+        else:
+            message = send_direct_message(
+                conversation=conversation,
+                sender=self.request.user,
+                ciphertext=serializer.validated_data.get("ciphertext", ""),
+                nonce=serializer.validated_data.get("nonce", ""),
+            )
         serializer.instance = message

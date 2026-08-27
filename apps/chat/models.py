@@ -19,11 +19,17 @@ class Conversation(models.Model):
 class Message(models.Model):
     conversation = models.ForeignKey(Conversation, on_delete=models.CASCADE, related_name="messages")
     sender = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="sent_messages")
-    text = models.TextField()
+    # Group messages (not yet E2EE): stored as plaintext here.
+    text = models.TextField(blank=True, default="")
+    # Direct (1:1) messages: end-to-end encrypted. The server stores only
+    # ciphertext + nonce and cannot read the content — decryption happens
+    # entirely on the recipient's device using their private key.
+    ciphertext = models.TextField(blank=True, default="")
+    nonce = models.TextField(blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ["created_at"]
 
     def __str__(self):
-        return f"{self.sender_id}: {self.text[:30]}"
+        return f"{self.sender_id}: {'<encrypted>' if self.ciphertext else self.text[:30]}"

@@ -20,8 +20,9 @@ class UserSerializer(serializers.ModelSerializer):
             "section",
             "section_name",
             "unit_name",
+            "public_key",
         ]
-        read_only_fields = ["degree", "is_staff", "joined_at", "section", "section_name", "unit_name"]
+        read_only_fields = ["degree", "is_staff", "joined_at", "section", "section_name", "unit_name", "public_key"]
 
     def get_section_name(self, obj):
         return obj.section.name if obj.section else None
@@ -45,3 +46,7 @@ class UpdateDegreeSerializer(serializers.Serializer):
 
 class AssignSectionSerializer(serializers.Serializer):
     section_id = serializers.IntegerField()
+
+
+class SetPublicKeySerializer(serializers.Serializer):
+    public_key = serializers.CharField()

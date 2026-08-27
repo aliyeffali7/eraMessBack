@@ -23,3 +23,9 @@ def set_user_degree(*, user: User, degree: int) -> User:
     user.degree = degree
     user.save(update_fields=["degree"])
     return user
+
+
+def set_user_public_key(*, user: User, public_key: str) -> User:
+    user.public_key = public_key
+    user.save(update_fields=["public_key"])
+    return user

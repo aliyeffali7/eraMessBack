@@ -15,6 +15,11 @@ class User(AbstractUser):
         "org.Section", on_delete=models.SET_NULL, null=True, blank=True, related_name="members"
     )
     joined_at = models.DateTimeField(auto_now_add=True)
+    public_key = models.TextField(
+        blank=True,
+        default="",
+        help_text="Base64 Curve25519 public key for end-to-end encrypted direct messages.",
+    )
 
     def __str__(self):
         return self.username

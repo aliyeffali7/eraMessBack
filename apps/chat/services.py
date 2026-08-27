@@ -51,27 +51,38 @@ def set_conversation_admin(*, conversation: Conversation, user: User, is_admin: 
     return conversation
 
 
-def send_message(*, conversation: Conversation, sender: User, text: str) -> Message:
+def send_group_message(*, conversation: Conversation, sender: User, text: str) -> Message:
     message = Message.objects.create(conversation=conversation, sender=sender, text=text)
     try:
-        _notify_participants(conversation=conversation, sender=sender, text=text)
+        _notify_participants(conversation=conversation, sender=sender, preview=f"{sender.username}: {text}"[:200])
     except Exception:
         pass
     return message
 
 
-def _notify_participants(*, conversation: Conversation, sender: User, text: str) -> None:
+def send_direct_message(*, conversation: Conversation, sender: User, ciphertext: str, nonce: str) -> Message:
+    # The server never sees plaintext here — `ciphertext`/`nonce` were produced
+    # client-side using the recipient's public key. We can't build a content
+    # preview for the push notification because we're unable to decrypt it.
+    message = Message.objects.create(conversation=conversation, sender=sender, ciphertext=ciphertext, nonce=nonce)
+    try:
+        _notify_participants(conversation=conversation, sender=sender, preview="Yeni mesaj")
+    except Exception:
+        pass
+    return message
+
+
+def _notify_participants(*, conversation: Conversation, sender: User, preview: str) -> None:
     from apps.notifications.services import send_push_to_users
 
     recipient_ids = list(conversation.participants.exclude(id=sender.id).values_list("id", flat=True))
     if not recipient_ids:
         return
     title = conversation.name if conversation.is_group else sender.username
-    body = f"{sender.username}: {text}" if conversation.is_group else text
     send_push_to_users(
         user_ids=recipient_ids,
         title=title,
-        body=body[:200],
+        body=preview,
         data={"conversation_id": conversation.id},
     )
 

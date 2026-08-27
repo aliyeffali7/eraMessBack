@@ -7,8 +7,14 @@ from apps.org.models import Section
 from apps.org.services import assign_user_to_section
 
 from .models import User
-from .serializers import AssignSectionSerializer, CreateUserSerializer, UpdateDegreeSerializer, UserSerializer
-from .services import create_user, list_all_users, search_users, set_user_degree
+from .serializers import (
+    AssignSectionSerializer,
+    CreateUserSerializer,
+    SetPublicKeySerializer,
+    UpdateDegreeSerializer,
+    UserSerializer,
+)
+from .services import create_user, list_all_users, search_users, set_user_degree, set_user_public_key
 
 
 class CreateUserView(generics.CreateAPIView):
@@ -26,6 +32,16 @@ class MeView(generics.RetrieveAPIView):
 
     def get_object(self):
         return self.request.user
+
+
+class SetPublicKeyView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def patch(self, request):
+        serializer = SetPublicKeySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = set_user_public_key(user=request.user, public_key=serializer.validated_data["public_key"])
+        return Response(UserSerializer(user).data)
 
 
 class UserListView(generics.ListAPIView):
