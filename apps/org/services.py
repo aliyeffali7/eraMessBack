@@ -30,3 +30,19 @@ def assign_user_to_section(*, user: User, section: Section) -> User:
 
 def list_units():
     return Unit.objects.prefetch_related("sections").all()
+
+
+def rename_unit(*, unit: Unit, name: str) -> Unit:
+    unit.name = name
+    unit.save(update_fields=["name"])
+    unit.conversation.name = name
+    unit.conversation.save(update_fields=["name"])
+    return unit
+
+
+def rename_section(*, section: Section, name: str) -> Section:
+    section.name = name
+    section.save(update_fields=["name"])
+    section.conversation.name = f"{section.unit.name} / {name}"
+    section.conversation.save(update_fields=["name"])
+    return section
