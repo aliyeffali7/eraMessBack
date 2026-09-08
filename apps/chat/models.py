@@ -18,6 +18,8 @@ class Conversation(models.Model):
         blank=True,
         related_name="+",
     )
+    # When True (groups only), only admins may post. Toggled by any group admin.
+    admins_only = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -39,6 +41,8 @@ class Message(models.Model):
     ciphertext = models.TextField(blank=True, default="")
     nonce = models.TextField(blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
+    # Set when the sender edits the message; null otherwise.
+    edited_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["created_at"]

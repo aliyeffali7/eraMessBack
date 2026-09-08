@@ -18,8 +18,9 @@ class MessageSerializer(serializers.ModelSerializer):
             "ciphertext",
             "nonce",
             "created_at",
+            "edited_at",
         ]
-        read_only_fields = ["conversation", "sender", "created_at"]
+        read_only_fields = ["conversation", "sender", "created_at", "edited_at"]
 
 
 class ConversationSerializer(serializers.ModelSerializer):
@@ -30,6 +31,7 @@ class ConversationSerializer(serializers.ModelSerializer):
     last_message = serializers.SerializerMethodField()
     is_admin = serializers.SerializerMethodField()
     unread_count = serializers.SerializerMethodField()
+    peer_last_read = serializers.SerializerMethodField()
 
     class Meta:
         model = Conversation
@@ -39,11 +41,13 @@ class ConversationSerializer(serializers.ModelSerializer):
             "name",
             "participants",
             "admin_ids",
+            "admins_only",
             "created_by",
             "created_at",
             "last_message",
             "is_admin",
             "unread_count",
+            "peer_last_read",
         ]
 
     def get_last_message(self, obj):
@@ -65,3 +69,16 @@ class ConversationSerializer(serializers.ModelSerializer):
         if marker and marker.last_read_at:
             qs = qs.filter(created_at__gt=marker.last_read_at)
         return qs.count()
+
+    def get_peer_last_read(self, obj):
+        """For a 1:1 conversation: the other person's last_read_at, so the
+        client can show a 'read' tick on messages sent before that time."""
+        request = self.context.get("request")
+        if not request or obj.is_group:
+            return None
+        marker = (
+            obj.read_markers.exclude(user=request.user)
+            .order_by("-last_read_at")
+            .first()
+        )
+        return marker.last_read_at if marker else None

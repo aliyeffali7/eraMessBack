@@ -1,6 +1,7 @@
 from django.db.models import Max
 from django.db.models.functions import Coalesce
 from django.utils import timezone
+from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from apps.accounts.models import User
 
@@ -63,9 +64,59 @@ def set_conversation_admin(
     return conversation
 
 
+def set_admins_only(*, conversation: Conversation, admins_only: bool) -> Conversation:
+    conversation.admins_only = admins_only
+    conversation.save(update_fields=["admins_only"])
+    return conversation
+
+
+def _assert_can_post(*, conversation: Conversation, sender: User) -> None:
+    if (
+        conversation.is_group
+        and conversation.admins_only
+        and not conversation.admins.filter(id=sender.id).exists()
+    ):
+        raise PermissionDenied("Bu qrupda yalnız adminlər mesaj yaza bilər.")
+
+
+def edit_message(
+    *,
+    message: Message,
+    editor: User,
+    text: str = "",
+    ciphertext: str = "",
+    nonce: str = "",
+) -> Message:
+    if message.sender_id != editor.id:
+        raise PermissionDenied("Yalnız öz mesajınızı redaktə edə bilərsiniz.")
+    if message.ciphertext:
+        if not ciphertext:
+            raise ValidationError("ciphertext tələb olunur.")
+        message.ciphertext = ciphertext
+        message.nonce = nonce
+    else:
+        if not text.strip():
+            raise ValidationError("text boş ola bilməz.")
+        message.text = text
+    message.edited_at = timezone.now()
+    message.save(update_fields=["text", "ciphertext", "nonce", "edited_at"])
+    return message
+
+
+def delete_message(*, message: Message, actor: User) -> None:
+    is_group_admin = (
+        message.conversation.is_group
+        and message.conversation.admins.filter(id=actor.id).exists()
+    )
+    if message.sender_id != actor.id and not is_group_admin:
+        raise PermissionDenied("Bu mesajı silə bilməzsiniz.")
+    message.delete()
+
+
 def send_group_message(
     *, conversation: Conversation, sender: User, text: str
 ) -> Message:
+    _assert_can_post(conversation=conversation, sender=sender)
     message = Message.objects.create(
         conversation=conversation, sender=sender, text=text
     )
@@ -86,6 +137,7 @@ def send_direct_message(
     # The server never sees plaintext here — `ciphertext`/`nonce` were produced
     # client-side using the recipient's public key. We can't build a content
     # preview for the push notification because we're unable to decrypt it.
+    _assert_can_post(conversation=conversation, sender=sender)
     message = Message.objects.create(
         conversation=conversation, sender=sender, ciphertext=ciphertext, nonce=nonce
     )

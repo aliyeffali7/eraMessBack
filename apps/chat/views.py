@@ -6,11 +6,13 @@ from rest_framework.views import APIView
 
 from apps.accounts.models import User
 
-from .models import Conversation
+from .models import Conversation, Message
 from .serializers import ConversationSerializer, MessageSerializer
 from .services import (
     add_members,
     create_group_conversation,
+    delete_message,
+    edit_message,
     get_or_create_direct_conversation,
     leave_conversation,
     list_conversations_for_user,
@@ -20,6 +22,7 @@ from .services import (
     rename_conversation,
     send_direct_message,
     send_group_message,
+    set_admins_only,
     set_conversation_admin,
 )
 
@@ -150,6 +153,48 @@ class LeaveConversationView(BaseGroupManageView):
     def post(self, request, conversation_id):
         conversation = self.get_conversation(conversation_id)
         leave_conversation(conversation=conversation, user=request.user)
+        return Response(status=204)
+
+
+class ConversationSettingsView(BaseGroupManageView):
+    """Group-level toggles set by any admin. Currently: admins_only."""
+
+    def patch(self, request, conversation_id):
+        conversation = self.get_conversation(conversation_id)
+        self.require_admin(conversation)
+        if "admins_only" in request.data:
+            conversation = set_admins_only(
+                conversation=conversation,
+                admins_only=bool(request.data.get("admins_only")),
+            )
+        return Response(
+            ConversationSerializer(conversation, context={"request": request}).data
+        )
+
+
+class MessageDetailView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def _get(self, request, conversation_id, message_id):
+        conversation = get_object_or_404(Conversation, pk=conversation_id)
+        if not conversation.participants.filter(id=request.user.id).exists():
+            raise PermissionDenied("Bu söhbətin üzvü deyilsiniz.")
+        return get_object_or_404(Message, pk=message_id, conversation=conversation)
+
+    def patch(self, request, conversation_id, message_id):
+        message = self._get(request, conversation_id, message_id)
+        message = edit_message(
+            message=message,
+            editor=request.user,
+            text=request.data.get("text", ""),
+            ciphertext=request.data.get("ciphertext", ""),
+            nonce=request.data.get("nonce", ""),
+        )
+        return Response(MessageSerializer(message).data)
+
+    def delete(self, request, conversation_id, message_id):
+        message = self._get(request, conversation_id, message_id)
+        delete_message(message=message, actor=request.user)
         return Response(status=204)
 
 

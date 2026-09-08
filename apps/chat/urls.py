@@ -4,9 +4,11 @@ from .views import (
     AddMembersView,
     ConversationDetailView,
     ConversationListView,
+    ConversationSettingsView,
     CreateGroupConversationView,
     LeaveConversationView,
     MarkConversationReadView,
+    MessageDetailView,
     MessageListCreateView,
     RemoveMemberView,
     RenameConversationView,
@@ -35,6 +37,16 @@ urlpatterns = [
         "conversations/<int:conversation_id>/messages/",
         MessageListCreateView.as_view(),
         name="message-list",
+    ),
+    path(
+        "conversations/<int:conversation_id>/messages/<int:message_id>/",
+        MessageDetailView.as_view(),
+        name="message-detail",
+    ),
+    path(
+        "conversations/<int:conversation_id>/settings/",
+        ConversationSettingsView.as_view(),
+        name="conversation-settings",
     ),
     path(
         "conversations/<int:conversation_id>/rename/",
