@@ -26,9 +26,19 @@ class MeetingInvite(models.Model):
     NO = "no"
     RESPONSE_CHOICES = [(PENDING, "Gözləyir"), (YES, "Bəli"), (NO, "Xeyr")]
 
-    meeting = models.ForeignKey(Meeting, on_delete=models.CASCADE, related_name="invites")
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="meeting_invites")
-    response = models.CharField(max_length=10, choices=RESPONSE_CHOICES, default=PENDING)
+    meeting = models.ForeignKey(
+        Meeting, on_delete=models.CASCADE, related_name="invites"
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="meeting_invites",
+    )
+    response = models.CharField(
+        max_length=10, choices=RESPONSE_CHOICES, default=PENDING
+    )
+    # Optional explanation given when the invitee answers "no".
+    reason = models.CharField(max_length=300, blank=True, default="")
 
     class Meta:
         unique_together = ("meeting", "user")

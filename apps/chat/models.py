@@ -1,5 +1,14 @@
+import uuid
+
 from django.conf import settings
 from django.db import models
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
+
+
+def attachment_path(instance, filename):
+    # Random name: the original filename lives (encrypted) inside the message body.
+    return f"chat/{uuid.uuid4().hex}"
 
 
 class Conversation(models.Model):
@@ -43,6 +52,10 @@ class Message(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     # Set when the sender edits the message; null otherwise.
     edited_at = models.DateTimeField(null=True, blank=True)
+    # Voice note / file. In 1:1 chats this is an encrypted blob (the key and
+    # metadata travel inside `ciphertext`); it is only served through the
+    # authenticated download endpoint, never as a public /media URL.
+    attachment = models.FileField(upload_to=attachment_path, blank=True)
 
     class Meta:
         ordering = ["created_at"]
@@ -64,9 +77,18 @@ class ReadMarker(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="read_markers"
     )
     last_read_at = models.DateTimeField(null=True, blank=True)
+    # Last time this user's app fetched the conversation (message reached the
+    # device) — drives the "delivered" double tick for the sender.
+    last_delivered_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         unique_together = ("conversation", "user")
 
     def __str__(self):
         return f"{self.user_id} read {self.conversation_id} @ {self.last_read_at}"
+
+
+@receiver(post_delete, sender=Message)
+def delete_attachment_file(sender, instance, **kwargs):
+    if instance.attachment:
+        instance.attachment.delete(save=False)

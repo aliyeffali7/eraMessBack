@@ -89,6 +89,8 @@ def edit_message(
 ) -> Message:
     if message.sender_id != editor.id:
         raise PermissionDenied("Yalnız öz mesajınızı redaktə edə bilərsiniz.")
+    if message.attachment:
+        raise ValidationError("Qoşması olan mesaj redaktə edilə bilməz.")
     if message.ciphertext:
         if not ciphertext:
             raise ValidationError("ciphertext tələb olunur.")
@@ -114,17 +116,24 @@ def delete_message(*, message: Message, actor: User) -> None:
 
 
 def send_group_message(
-    *, conversation: Conversation, sender: User, text: str
+    *, conversation: Conversation, sender: User, text: str, attachment=None
 ) -> Message:
     _assert_can_post(conversation=conversation, sender=sender)
     message = Message.objects.create(
-        conversation=conversation, sender=sender, text=text
+        conversation=conversation,
+        sender=sender,
+        text=text,
+        attachment=attachment or "",
     )
     try:
         _notify_participants(
             conversation=conversation,
             sender=sender,
-            preview=f"{sender.username}: {text}"[:200],
+            preview=(
+                f"{sender.username}: 📎 Qoşma"
+                if attachment
+                else f"{sender.username}: {text}"[:200]
+            ),
         )
     except Exception:
         pass
@@ -132,14 +141,23 @@ def send_group_message(
 
 
 def send_direct_message(
-    *, conversation: Conversation, sender: User, ciphertext: str, nonce: str
+    *,
+    conversation: Conversation,
+    sender: User,
+    ciphertext: str,
+    nonce: str,
+    attachment=None,
 ) -> Message:
     # The server never sees plaintext here — `ciphertext`/`nonce` were produced
     # client-side using the recipient's public key. We can't build a content
     # preview for the push notification because we're unable to decrypt it.
     _assert_can_post(conversation=conversation, sender=sender)
     message = Message.objects.create(
-        conversation=conversation, sender=sender, ciphertext=ciphertext, nonce=nonce
+        conversation=conversation,
+        sender=sender,
+        ciphertext=ciphertext,
+        nonce=nonce,
+        attachment=attachment or "",
     )
     try:
         _notify_participants(
@@ -180,9 +198,24 @@ def list_conversations_for_user(*, user: User):
 
 
 def mark_conversation_read(*, conversation: Conversation, user: User) -> None:
+    now = timezone.now()
     ReadMarker.objects.update_or_create(
-        conversation=conversation, user=user, defaults={"last_read_at": timezone.now()}
+        conversation=conversation,
+        user=user,
+        defaults={"last_read_at": now, "last_delivered_at": now},
     )
+
+
+def mark_conversations_delivered(*, conversations, user: User) -> None:
+    """The user's device just fetched these conversations, so every message
+    sent so far has been delivered to them."""
+    now = timezone.now()
+    for conversation in conversations:
+        ReadMarker.objects.update_or_create(
+            conversation=conversation,
+            user=user,
+            defaults={"last_delivered_at": now},
+        )
 
 
 def list_messages(*, conversation: Conversation, after_id: int | None = None):

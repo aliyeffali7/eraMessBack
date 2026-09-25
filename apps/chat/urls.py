@@ -8,6 +8,7 @@ from .views import (
     CreateGroupConversationView,
     LeaveConversationView,
     MarkConversationReadView,
+    MessageAttachmentView,
     MessageDetailView,
     MessageListCreateView,
     RemoveMemberView,
@@ -42,6 +43,11 @@ urlpatterns = [
         "conversations/<int:conversation_id>/messages/<int:message_id>/",
         MessageDetailView.as_view(),
         name="message-detail",
+    ),
+    path(
+        "conversations/<int:conversation_id>/messages/<int:message_id>/attachment/",
+        MessageAttachmentView.as_view(),
+        name="message-attachment",
     ),
     path(
         "conversations/<int:conversation_id>/settings/",

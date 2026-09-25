@@ -1,6 +1,8 @@
+from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions
 from rest_framework.exceptions import PermissionDenied
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -18,6 +20,7 @@ from .services import (
     list_conversations_for_user,
     list_messages,
     mark_conversation_read,
+    mark_conversations_delivered,
     remove_member,
     rename_conversation,
     send_direct_message,
@@ -33,6 +36,15 @@ class ConversationListView(generics.ListAPIView):
 
     def get_queryset(self):
         return list_conversations_for_user(user=self.request.user)
+
+    def list(self, request, *args, **kwargs):
+        # Compute the response first so this fetch doesn't alter what the
+        # caller sees, then record delivery for the caller's conversations.
+        response = super().list(request, *args, **kwargs)
+        mark_conversations_delivered(
+            conversations=self.get_queryset(), user=request.user
+        )
+        return response
 
 
 class StartDirectConversationView(generics.GenericAPIView):
@@ -209,9 +221,27 @@ class MarkConversationReadView(APIView):
         return Response(status=204)
 
 
+class MessageAttachmentView(APIView):
+    """Streams a message's attachment to conversation members only."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, conversation_id, message_id):
+        conversation = get_object_or_404(Conversation, pk=conversation_id)
+        if not conversation.participants.filter(id=request.user.id).exists():
+            raise PermissionDenied("Bu söhbətin üzvü deyilsiniz.")
+        message = get_object_or_404(Message, pk=message_id, conversation=conversation)
+        if not message.attachment:
+            return Response({"detail": "Qoşma yoxdur."}, status=404)
+        return FileResponse(
+            message.attachment.open("rb"), content_type="application/octet-stream"
+        )
+
+
 class MessageListCreateView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = MessageSerializer
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     def get_conversation(self) -> Conversation:
         conversation = get_object_or_404(
@@ -224,6 +254,9 @@ class MessageListCreateView(generics.ListCreateAPIView):
     def get_queryset(self):
         conversation = self.get_conversation()
         after_id = self.request.query_params.get("after")
+        mark_conversations_delivered(
+            conversations=[conversation], user=self.request.user
+        )
         return list_messages(conversation=conversation, after_id=after_id)
 
     def perform_create(self, serializer):
@@ -233,6 +266,7 @@ class MessageListCreateView(generics.ListCreateAPIView):
                 conversation=conversation,
                 sender=self.request.user,
                 text=serializer.validated_data.get("text", ""),
+                attachment=serializer.validated_data.get("attachment"),
             )
         else:
             message = send_direct_message(
@@ -240,5 +274,6 @@ class MessageListCreateView(generics.ListCreateAPIView):
                 sender=self.request.user,
                 ciphertext=serializer.validated_data.get("ciphertext", ""),
                 nonce=serializer.validated_data.get("nonce", ""),
+                attachment=serializer.validated_data.get("attachment"),
             )
         serializer.instance = message

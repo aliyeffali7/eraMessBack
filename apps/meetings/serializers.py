@@ -7,10 +7,22 @@ from .models import Meeting, MeetingInvite
 
 class MeetingInviteSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
+    reason = serializers.SerializerMethodField()
 
     class Meta:
         model = MeetingInvite
-        fields = ["id", "user", "response"]
+        fields = ["id", "user", "response", "reason"]
+
+    def get_reason(self, obj):
+        # A decline reason is only for the organiser/admins and the person
+        # who wrote it — never for other invitees.
+        request = self.context.get("request")
+        if not request:
+            return ""
+        me = request.user
+        if me.is_staff or me.id == obj.meeting.created_by_id or me.id == obj.user_id:
+            return obj.reason
+        return ""
 
 
 class MeetingSerializer(serializers.ModelSerializer):
@@ -39,7 +51,9 @@ class MeetingSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         if not request:
             return None
-        invite = next((i for i in obj.invites.all() if i.user_id == request.user.id), None)
+        invite = next(
+            (i for i in obj.invites.all() if i.user_id == request.user.id), None
+        )
         return invite.response if invite else None
 
     def get_invite_count(self, obj):
@@ -52,10 +66,20 @@ class CreateMeetingSerializer(serializers.Serializer):
     location = serializers.CharField(required=False, allow_blank=True, default="")
     starts_at = serializers.DateTimeField()
     ends_at = serializers.DateTimeField(required=False, allow_null=True, default=None)
-    user_ids = serializers.ListField(child=serializers.IntegerField(), required=False, default=list)
-    section_ids = serializers.ListField(child=serializers.IntegerField(), required=False, default=list)
-    unit_ids = serializers.ListField(child=serializers.IntegerField(), required=False, default=list)
+    user_ids = serializers.ListField(
+        child=serializers.IntegerField(), required=False, default=list
+    )
+    section_ids = serializers.ListField(
+        child=serializers.IntegerField(), required=False, default=list
+    )
+    unit_ids = serializers.ListField(
+        child=serializers.IntegerField(), required=False, default=list
+    )
+    all_users = serializers.BooleanField(required=False, default=False)
 
 
 class RespondSerializer(serializers.Serializer):
     response = serializers.ChoiceField(choices=["yes", "no"])
+    reason = serializers.CharField(
+        max_length=300, required=False, allow_blank=True, default=""
+    )

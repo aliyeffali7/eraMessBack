@@ -42,6 +42,17 @@ Mesajı deşifrə etmək üçün göndərənin `public_key`-i lazımdır (`/acco
 > Qeyd: hazırda `public_key` user başına **tək sahədir** — çox cihaz dəstəyi
 > (cihaz reyestri) planlaşdırılır, o zaman bu dəyişəcək.
 
+### Qoşmalar (səs mesajı / fayl)
+
+- Göndərmə: `POST /chat/conversations/<id>/messages/` **multipart/form-data**, əlavə sahə `attachment` (fayl, maks. 15 MB).
+  - **1:1:** fayl cihazda `nacl.secretbox` (təsadüfi 32B açar + 24B nonce) ilə şifrələnir, şifrəli blob `attachment` kimi yüklənir.
+    Mesajın şifrəli mətni (`ciphertext`) `"ATT:" + JSON` olur: `{kind:"voice"|"file", name, mime, size, dur?, key, nonce}` (key/nonce base64).
+  - **Qrup:** fayl olduğu kimi yüklənir, `text` = `"ATT:" + JSON` (key/nonce yoxdur).
+- Mesaj cavabında `has_attachment: true` olur (URL verilmir).
+- Yükləmə: `GET /chat/conversations/<id>/messages/<msgId>/attachment/` (JWT, yalnız söhbət üzvləri) → xam bayt (1:1-də şifrəli blob).
+- Qoşması olan mesaj redaktə oluna bilməz. Mesaj silinəndə fayl da silinir.
+- Serverdə nginx: `client_max_body_size 20m;` olmalıdır.
+
 ## Digər
 
 | Metod | Endpoint | Qeyd |

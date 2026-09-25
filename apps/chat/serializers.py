@@ -4,9 +4,13 @@ from apps.accounts.serializers import UserSerializer
 
 from .models import Conversation, Message
 
+MAX_ATTACHMENT_BYTES = 15 * 1024 * 1024
+
 
 class MessageSerializer(serializers.ModelSerializer):
     sender = UserSerializer(read_only=True)
+    attachment = serializers.FileField(write_only=True, required=False)
+    has_attachment = serializers.SerializerMethodField()
 
     class Meta:
         model = Message
@@ -19,8 +23,18 @@ class MessageSerializer(serializers.ModelSerializer):
             "nonce",
             "created_at",
             "edited_at",
+            "attachment",
+            "has_attachment",
         ]
         read_only_fields = ["conversation", "sender", "created_at", "edited_at"]
+
+    def get_has_attachment(self, obj):
+        return bool(obj.attachment)
+
+    def validate_attachment(self, value):
+        if value.size > MAX_ATTACHMENT_BYTES:
+            raise serializers.ValidationError("Fayl 15 MB-dan böyük ola bilməz.")
+        return value
 
 
 class ConversationSerializer(serializers.ModelSerializer):
@@ -32,6 +46,7 @@ class ConversationSerializer(serializers.ModelSerializer):
     is_admin = serializers.SerializerMethodField()
     unread_count = serializers.SerializerMethodField()
     peer_last_read = serializers.SerializerMethodField()
+    peer_last_delivered = serializers.SerializerMethodField()
 
     class Meta:
         model = Conversation
@@ -48,6 +63,7 @@ class ConversationSerializer(serializers.ModelSerializer):
             "is_admin",
             "unread_count",
             "peer_last_read",
+            "peer_last_delivered",
         ]
 
     def get_last_message(self, obj):
@@ -70,15 +86,29 @@ class ConversationSerializer(serializers.ModelSerializer):
             qs = qs.filter(created_at__gt=marker.last_read_at)
         return qs.count()
 
-    def get_peer_last_read(self, obj):
-        """For a 1:1 conversation: the other person's last_read_at, so the
-        client can show a 'read' tick on messages sent before that time."""
+    def _peer_floor(self, obj, field):
+        """Oldest `field` timestamp across all *other* participants, or None if
+        any of them has none yet. A message is delivered/read only once every
+        other participant has it (1:1 → the single peer; group → everyone)."""
         request = self.context.get("request")
-        if not request or obj.is_group:
+        if not request:
             return None
-        marker = (
-            obj.read_markers.exclude(user=request.user)
-            .order_by("-last_read_at")
-            .first()
+        peer_ids = list(
+            obj.participants.exclude(id=request.user.id).values_list("id", flat=True)
         )
-        return marker.last_read_at if marker else None
+        if not peer_ids:
+            return None
+        stamps = {
+            m.user_id: getattr(m, field)
+            for m in obj.read_markers.filter(user_id__in=peer_ids)
+        }
+        values = [stamps.get(pid) for pid in peer_ids]
+        if any(v is None for v in values):
+            return None
+        return min(values)
+
+    def get_peer_last_read(self, obj):
+        return self._peer_floor(obj, "last_read_at")
+
+    def get_peer_last_delivered(self, obj):
+        return self._peer_floor(obj, "last_delivered_at")
